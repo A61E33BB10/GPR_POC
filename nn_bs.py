@@ -96,7 +96,7 @@ def make_model():
 
 # ── Training ──────────────────────────────────────────────────────────────
 
-def train(X_np, y_np, epochs=2000, lr=1e-3, batch_size=512):
+def train(X_np, y_np, epochs=5000, lr=1e-3, batch_size=512):
     """
     Train an MLP on BS call prices.
 
@@ -104,6 +104,11 @@ def train(X_np, y_np, epochs=2000, lr=1e-3, batch_size=512):
     different weights see very different gradient magnitudes. For this small
     problem, full-batch would work too, but mini-batches add beneficial noise
     that helps escape shallow local minima.
+
+    CosineAnnealingLR decays the learning rate from 1e-3 → 0 following a cosine
+    curve. This lets the net make big steps early (explore) and tiny steps late
+    (settle into a precise minimum). Eliminates the loss bouncing we saw at
+    constant lr.
 
     Returns the model and normalisation stats needed for inference.
     """
@@ -115,6 +120,7 @@ def train(X_np, y_np, epochs=2000, lr=1e-3, batch_size=512):
 
     model = make_model().to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  model: {n_params:,} parameters, device: {DEVICE}")
 
@@ -134,11 +140,13 @@ def train(X_np, y_np, epochs=2000, lr=1e-3, batch_size=512):
             optimizer.step()
             epoch_loss += loss.item() * len(idx)
 
+        scheduler.step()
         epoch_loss /= n
-        if epoch % 200 == 0 or epoch == epochs - 1:
+        if epoch % 500 == 0 or epoch == epochs - 1:
             # denormalise the loss for interpretability — this is RMSE in price units
             rmse_price = (epoch_loss ** 0.5) * y_sig.item()
-            print(f"  epoch {epoch:4d}/{epochs}  MSE(norm)={epoch_loss:.6f}  RMSE(price)={rmse_price:.4f}")
+            cur_lr = scheduler.get_last_lr()[0]
+            print(f"  epoch {epoch:4d}/{epochs}  MSE(norm)={epoch_loss:.6f}  RMSE(price)={rmse_price:.4f}  lr={cur_lr:.1e}")
 
     return model, x_mu, x_sig, y_mu, y_sig
 
