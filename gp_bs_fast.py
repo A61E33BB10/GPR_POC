@@ -73,20 +73,25 @@ def normalise(X, mean=None, std=None):
 # ── Training ──────────────────────────────────────────────────────────────
 
 def _fit_once(model, likelihood, X, y, n_iter, lr, cholesky_size):
-    """Single L-BFGS run from current parameter values."""
+    """Single L-BFGS run with early stopping when loss converges."""
     model.train()
     likelihood.train()
     optimizer = torch.optim.LBFGS(model.parameters(), lr=lr, max_iter=20, line_search_fn='strong_wolfe')
     mll = ExactMarginalLogLikelihood(likelihood, model)
 
+    prev_loss = float('inf')
     with gpytorch.settings.max_cholesky_size(cholesky_size):
-        for _ in range(n_iter):
+        for i in range(n_iter):
             def closure():
                 optimizer.zero_grad()
                 loss = -mll(model(X), y)
                 loss.backward()
                 return loss
             loss = optimizer.step(closure)
+            # stop when loss stops improving
+            if abs(prev_loss - loss.item()) < 1e-6:
+                break
+            prev_loss = loss.item()
     return loss.item()
 
 
@@ -111,7 +116,7 @@ def train_gp(X_np, y_np, n_iter=50, lr=0.1, n_restarts=None):
     solver = 'Cholesky' if use_cholesky else 'CG'
     # fewer restarts for large N — each restart is expensive
     if n_restarts is None:
-        n_restarts = 5 if n <= 2000 else 2 if n <= 5000 else 0
+        n_restarts = 3 if n <= 2000 else 1 if n <= 5000 else 0
     print(f"  solver: {solver}, L-BFGS × {n_restarts + 1} restarts (N={n})")
 
     best_loss, best_state = float('inf'), None
