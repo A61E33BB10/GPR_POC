@@ -127,7 +127,7 @@ def train_gp(X_np, y_np, n_iter=50, lr=0.1, n_restarts=None):
 
         # random init for restarts (first run uses defaults)
         if restart > 0:
-            model.covar_module.lengthscale = torch.rand(4, dtype=DTYPE) * 4 + 0.5
+            model.covar_module.lengthscale = torch.rand(4, dtype=DTYPE, device=DEVICE) * 4 + 0.5
 
         loss = _fit_once(model, likelihood, X, y_norm, n_iter, lr, cholesky_size)
         tag = " (best)" if loss < best_loss else ""
