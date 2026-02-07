@@ -18,9 +18,11 @@ Architecture choices
 - 4 inputs (S, K, T, sigma) -> 128 -> 128 -> 128 -> 1 output
 - ReLU activations between hidden layers (simplest nonlinearity that works)
 - No activation on the output (prices are unbounded positive reals)
-- 3 hidden layers: 2 would underfit slightly, 4 adds nothing for a smooth function
+- 3 hidden layers: 2 would underfit slightly, 4 overfits on 4096 training points
 - 128 neurons per layer: enough capacity for a 4D smooth surface, small enough to
   train in seconds. Total params: 4*128 + 128*128 + 128*128 + 128*1 + biases ~ 33k
+- Bigger (256x4, 200k params) was tested and overfits — worse test MAE despite
+  lower training loss. The 33k model is the sweet spot for this dataset size.
 
 Why normalise?
 --------------
@@ -96,7 +98,7 @@ def make_model():
 
 # ── Training ──────────────────────────────────────────────────────────────
 
-def train(X_np, y_np, epochs=5000, lr=1e-3, batch_size=512):
+def train(X_np, y_np, epochs=10000, lr=1e-3, batch_size=512):
     """
     Train an MLP on BS call prices.
 
